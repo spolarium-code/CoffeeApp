@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Coffee Stock App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+      .then(() => console.log("Offline Mode Ready!"));
+  }
+</script>
+</head>
+<body>
+
+<div class="container">
+    <div class="sidebar">
+        <h2>Coffee Shop</h2>
+        <button onclick="showDashboard()">Dashboard</button>
+        <button onclick="showAddCoffee()">Add Ingredients (Coffee)</button>
+        <button onclick="showAddBreakfast()">Add Ingredients (Breakfast)</button>
+        <button onclick="showAddProduct()">Add Product</button>
+        <button onclick="showProductList()">Order / Product List</button>
+        <button onclick="showReports()">Reports</button>
+        <button onclick="toggleFullscreen()" style="background-color: #2e7d32; margin-top: 20px;">🖥️ Fullscreen Mode</button>
+    </div>
+
+    <div class="main" id="mainContent">
+        </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

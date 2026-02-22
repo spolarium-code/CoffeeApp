@@ -1,0 +1,98 @@
+body { margin: 0; font-family: 'Segoe UI', Arial; background: #f4f1ee; }
+.container { display: flex; height: 100vh; }
+.sidebar { width: 220px; background: #6F4E37; color: white; padding: 20px; flex-shrink: 0; }
+.sidebar button { width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 5px; background: white; color: #6F4E37; cursor: pointer; font-weight: bold; }
+.sidebar button:hover { background: #e0d6cc; }
+.main { flex: 1; padding: 30px; overflow-y: auto; }
+
+/* Grid for FoodPanda style */
+.product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; }
+.card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
+.card img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 10px; }
+
+/* Dashboard List */
+.ing-item { background: white; padding: 15px; margin-bottom: 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid #6F4E37; }
+.btn-del { background: #ff4d4d; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-left: 5px; }
+.btn-use { background: #6F4E37; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+
+/* Cart Section */
+.cart-panel { 
+    background: #fff; 
+    padding: 20px; 
+    border-top: 2px solid #6F4E37; 
+    margin-top: 30px; 
+    border-radius: 12px;
+    /* Added centering logic */
+    display: flex;
+    flex-direction: column;
+    align-items: center; 
+    text-align: center;
+}
+
+.cart-item { 
+    display: flex; 
+    justify-content: space-between; 
+    padding: 8px 0; 
+    border-bottom: 1px inset #eee;
+    width: 100%; /* Ensure items take full width of their container */
+    max-width: 500px; /* Limits width so it doesn't look too stretched on wide screens */
+}
+
+textarea, input[type="text"] {
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    resize: none;
+    text-align: center; /* Centers the text inside the input/textarea */
+    margin-bottom: 10px;
+}
+
+
+.card small {
+    font-size: 0.85em;
+    line-height: 1.2;
+    min-height: 2.4em; /* Keeps cards aligned if descriptions vary in length */
+    overflow: hidden;
+    
+}
+/* Container for the product card */
+.product-card {
+    background: #fff;
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    width: 220px;
+    text-align: center;
+    
+    /* This is the magic to align buttons at the bottom */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between; 
+    height: 100%; /* Ensures all cards in a row have the same height */
+}
+
+/* Ensure images don't break the layout */
+.product-card img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+/* Fix the height of the description so 1 or 2 lines don't matter */
+.product-card p {
+    font-size: 0.9rem;
+    color: #666;
+    margin: 10px 0;
+    min-height: 40px; /* Adjust this value based on your longest description */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Group the buttons together at the bottom */
+.product-card .button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: auto; /* Pushes this whole group to the bottom of the card */
+}
