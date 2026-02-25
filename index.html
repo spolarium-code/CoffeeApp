@@ -10,28 +10,60 @@
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js')
-      .then(() => console.log("Offline Mode Ready!"));
+      .then(registration => {
+        console.log("SW registered");
+
+        // Force check for updates on every page load (good compromise)
+        registration.update();   // ← Add this line
+
+        // Optional: listen for when a new SW is waiting and auto-activate it
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // New version ready → you can notify user or auto reload
+                console.log("New version available – refresh to update");
+                // Optional: window.location.reload();  ← uncomment if you want auto-reload
+              }
+            });
+          }
+        });
+      })
+      .catch(err => console.error('SW registration failed:', err));
   }
 </script>
 </head>
 <body>
+ <!-- Hamburger toggle button (always visible) -->
+<button id="menuToggle" class="menu-btn">☰</button>
 
-<div class="container">
-    <div class="sidebar">
-        <h2>Coffee Shop</h2>
-        <button onclick="showDashboard()">Dashboard</button>
-        <button onclick="showAddCoffee()">Add Ingredients (Coffee)</button>
-        <button onclick="showAddBreakfast()">Add Ingredients (Breakfast)</button>
-        <button onclick="showAddProduct()">Add Product</button>
-        <button onclick="showProductList()">Order / Product List</button>
-        <button onclick="showReports()">Reports</button>
-        <button onclick="toggleFullscreen()" style="background-color: #2e7d32; margin-top: 20px;">🖥️ Fullscreen Mode</button>
-    </div>
-
-    <div class="main" id="mainContent">
-        </div>
+<!-- Sliding sidebar – no close button anymore -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h2>Coffee Shop</h2>
+  </div>
+  
+  <button onclick="showDashboard()">Dashboard</button>
+  <button onclick="showAddCoffee()">Add Ingredients (Coffee)</button>
+  <button onclick="showAddBreakfast()">Add Ingredients (Breakfast)</button>
+  <button onclick="showAddProduct()">Add Product</button>
+  <button onclick="showProductList()">Order / Product List</button>
+  <button onclick="showReports()">Reports</button>
+  
+  <button onclick="toggleFullscreen()" class="fullscreen-btn">
+    🖥️ Fullscreen Mode
+  </button>
 </div>
 
-<script src="app.js"></script>
+<!-- Overlay to close on tap outside -->
+<div class="overlay" id="overlay"></div>
+
+<!-- Main content -->
+<div class="main" id="mainContent"></div>
+    <!-- Your dashboard etc. will load here -->
+  </div>
+
+  <script src="app.js"></script>
 </body>
 </html>
