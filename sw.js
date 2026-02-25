@@ -6,7 +6,7 @@ const ASSETS = [
   './style.css',
   './app.js',
   './manifest.json'
-  // Add any future static images here, e.g. './icon-192.png'
+ 
 ];
 
 self.addEventListener('install', event => {
@@ -40,4 +40,5 @@ self.addEventListener('fetch', event => {
       });
     })
   );
+
 });
