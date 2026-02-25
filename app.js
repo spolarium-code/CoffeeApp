@@ -22,6 +22,9 @@ request.onupgradeneeded = function (e) {
     if (!db.objectStoreNames.contains("sales")) {
         db.createObjectStore("sales", { keyPath: "id", autoIncrement: true });
     }
+    if (!db.objectStoreNames.contains("usages")) {  // ← New store for manual uses
+        db.createObjectStore("usages", { keyPath: "id", autoIncrement: true });
+    }
 };
 
 request.onsuccess = function (e) {
@@ -74,14 +77,25 @@ function deleteIngredient(id) {
 function useStock(id) {
     let amount = parseFloat(document.getElementById("use-" + id).value);
     if (!amount || amount <= 0) return alert("Enter valid amount");
-    let tx = db.transaction(["ingredients"], "readwrite");
-    let store = tx.objectStore("ingredients");
-    let request = store.get(id);
+    let tx = db.transaction(["ingredients", "usages"], "readwrite");  // ← Include "usages"
+    let ingStore = tx.objectStore("ingredients");
+    let usageStore = tx.objectStore("usages");
+    let request = ingStore.get(id);
     request.onsuccess = function () {
         let item = request.result;
         if (amount > item.totalStock) return alert("Not enough stock!");
         item.totalStock -= amount;
-        store.put(item);
+        ingStore.put(item);
+
+        // Log manual usage
+        usageStore.add({
+            ingredient: item.name.toLowerCase(),
+            amount: amount,
+            unit: item.baseUnit,
+            date: new Date().toISOString().split('T')[0],
+            timestamp: new Date()
+        });
+
         loadIngredients();
     };
 }
@@ -166,20 +180,30 @@ function addBreakfastIngredient() {
 
 // --- PRODUCT MANAGEMENT ---
 function showAddProduct() {
-    document.getElementById("mainContent").innerHTML = `
-        <div style="display: flex; flex-direction: column; align-items: center; padding-top: 30px;">
-            <h2 style="font-size: 2rem;">Add New Product</h2>
-            <div style="width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 10px;">
-                <input id="pName" placeholder="Product Name" style="padding: 12px; font-size: 1.1rem;">
-                <input id="pPrice" type="number" placeholder="Price (₱)" style="padding: 12px; font-size: 1.1rem;">
-                <textarea id="pDesc" placeholder="Product Description" style="height: 60px; padding: 12px; font-size: 1.1rem;"></textarea>
-                <div style="text-align: center; border: 1px dashed #ccc; padding: 10px;">
-                    <label style="display: block; margin-bottom: 5px;">Product Photo:</label>
-                    <input type="file" id="pImage" accept="image/*">
-                </div>
-                <button class="btn-use" style="padding: 15px; font-size: 1.2rem; margin-top: 10px;" onclick="addProduct()">Save Product</button>
-            </div>
-        </div>`;
+   document.getElementById("mainContent").innerHTML = `
+  <div style="max-width: 500px; margin: 40px auto; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);">
+    <h2 style="text-align: center; color: #6F4E37; margin-bottom: 30px;">Add New Product</h2>
+    
+    <form id="addProductForm">
+      <label for="pName">Product Name</label>
+      <input type="text" id="pName" placeholder="Product Name" required>
+      
+      <label for="pPrice">Price (₱)</label>
+      <input type="number" id="pPrice" placeholder="Price (₱)" step="0.01" min="0" required>
+      
+      <label for="pDesc">Product Description</label>
+      <textarea id="pDesc" placeholder="Product Description" rows="4"></textarea>
+      
+      <div class="file-wrapper">
+        <label>Product Photo</label>
+        <input type="file" id="pImage" accept="image/*">
+      </div>
+      
+      <button type="button" class="btn-use" style="width:100%; padding:14px; font-size:1.1rem;" onclick="addProduct()">
+        Save Product
+      </button>
+    </form>
+  </div>`;
 }
 
 function addProduct() {
@@ -236,15 +260,21 @@ function loadProducts() {
         container.innerHTML = "";
         request.result.forEach(p => {
             container.innerHTML += `
-                <div class="card">
-                    <img src="${p.image || 'https://via.placeholder.com/150'}">
-                    <strong>${p.name}</strong><br>
-                    <small>${p.description || ""}</small><br>
-                    <strong style="color: #6F4E37;">₱${p.price}</strong><br><br>
-                    <input type="number" id="qty-${p.id}" value="1" min="1" style="width: 50px; margin-bottom:10px;"><br>
-                    <button class="btn-use" onclick="prepareAddToCart(${p.id}, '${p.name}', ${p.price})">Add to Order</button>
-                    <button class="btn-del" style="margin-top:10px; font-size:10px" onclick="deleteProduct(${p.id})">Delete</button>
-                </div>`;
+    <div class="product-card">
+        <img src="${p.image || 'https://via.placeholder.com/150'}">
+        <div class="content">
+            <strong>${p.name}</strong><br>
+            <small>${p.description || ""}</small><br>
+            <strong style="color: #6F4E37; font-size:1.3rem;">₱${p.price}</strong>
+        </div>
+        <div class="button-group">
+            <input type="number" id="qty-${p.id}" value="1" min="1">
+            <button class="btn-use" onclick="prepareAddToCart(${p.id}, '${p.name.replace(/'/g, "\\'")}', ${p.price})">
+                Add to Order
+            </button>
+            <button class="btn-del" onclick="deleteProduct(${p.id})">Delete</button>
+        </div>
+    </div>`;
         });
     };
 }
@@ -317,8 +347,9 @@ function checkout() {
     if (cash < total) return alert("Insufficient cash!");
 
     try {
-        let tx = db.transaction(["sales"], "readwrite");
+        let tx = db.transaction(["sales", "ingredients"], "readwrite");  // ← Include "ingredients" for deduction
         let store = tx.objectStore("sales");
+        let ingStore = tx.objectStore("ingredients");
 
         let saleData = {
             customer: customer,
@@ -328,11 +359,41 @@ function checkout() {
             timestamp: new Date()
         };
 
-        console.log("Saving sale:", saleData);  // ← DEBUG: Check if data is correct
-
         let request = store.add(saleData);
         request.onsuccess = function () {
             console.log("Sale saved successfully! ID:", request.result);
+
+            // Auto-deduct stock based on recipes
+            cart.forEach(cartItem => {
+                let productName = cartItem.name.toLowerCase().trim();
+                let matchedRecipe = Object.keys(RECIPES).find(key => 
+                    key.toLowerCase().includes(productName) || productName.includes(key.toLowerCase())
+                );
+
+                if (matchedRecipe && RECIPES[matchedRecipe]) {
+                    Object.entries(RECIPES[matchedRecipe]).forEach(([ingName, ingAmount]) => {
+                        let usedAmount = ingAmount * cartItem.qty;
+                        // Find and update ingredient stock
+                        let ingRequest = ingStore.openCursor();
+                        ingRequest.onsuccess = function(e) {
+                            let cursor = e.target.result;
+                            if (cursor) {
+                                if (cursor.value.name.toLowerCase() === ingName.toLowerCase()) {
+                                    let item = cursor.value;
+                                    if (usedAmount > item.totalStock) {
+                                        alert(`Not enough ${ingName}!`);
+                                        return;
+                                    }
+                                    item.totalStock -= usedAmount;
+                                    cursor.update(item);
+                                }
+                                cursor.continue();
+                            }
+                        };
+                    });
+                }
+            });
+
             printReceipt(customer, cash, total);
         };
         request.onerror = function (e) {
@@ -478,13 +539,13 @@ function renderIncomeReport(data, from, to) {
 
     document.getElementById("reportResult").innerHTML = html;
 }
-function renderUsageReport(data, from, to) {
+function renderUsageReport(data, from, to) {  // data is filtered sales
     let usageSummary = {};
 
+    // Aggregate from sales (existing logic)
     data.forEach(sale => {
         sale.items.forEach(item => {
             let productName = item.name.toLowerCase().trim();
-            // Try to match recipe key by partial or exact (more forgiving)
             let matchedRecipe = Object.keys(RECIPES).find(key => 
                 key.toLowerCase().includes(productName) || productName.includes(key.toLowerCase())
             );
@@ -492,49 +553,68 @@ function renderUsageReport(data, from, to) {
             if (matchedRecipe && RECIPES[matchedRecipe]) {
                 for (let ing in RECIPES[matchedRecipe]) {
                     let amountUsed = RECIPES[matchedRecipe][ing] * item.qty;
-                    usageSummary[ing] = (usageSummary[ing] || 0) + amountUsed;
+                    usageSummary[ing.toLowerCase()] = (usageSummary[ing.toLowerCase()] || 0) + amountUsed;
                 }
             }
         });
     });
 
-    if (Object.keys(usageSummary).length === 0) {
-        document.getElementById("reportResult").innerHTML = "<p>No ingredient usage detected. Make sure products sold match recipe names (e.g. 'coffee', 'breakfast meal 1', 'matcha').</p>";
-        return;
-    }
+    // Aggregate from manual usages
+    let tx = db.transaction(["usages"], "readonly");
+    let usageRequest = tx.objectStore("usages").getAll();
+    usageRequest.onsuccess = function() {
+        let allUsages = usageRequest.result;
+        let filteredUsages = allUsages.filter(u => {
+            let usageDate = new Date(u.date);
+            let fromDate = new Date(from);
+            let toDate = new Date(to);
+            return usageDate >= fromDate && usageDate <= toDate;
+        });
 
-    let html = `
-        <div id="reportToExport">
-            <h2 style="text-align:center;">Stock Usage Summary</h2>
-            <p style="text-align:center;">${from} to ${to}</p>
-            <table style="width:100%; border-collapse: collapse; margin-top: 20px;">
-                <thead>
-                    <tr style="background:#f2f2f2;">
-                        <th>Ingredient</th>
-                        <th style="text-align:right;">Amount Used</th>
-                    </tr>
-                </thead>
-                <tbody>`;
+        filteredUsages.forEach(usage => {
+            let ing = usage.ingredient.toLowerCase();
+            usageSummary[ing] = (usageSummary[ing] || 0) + usage.amount;
+        });
 
-    for (let ing in usageSummary) {
-        let unit = ing.toLowerCase().includes("egg") ? "pcs" :
-                   ing.toLowerCase().includes("spam") ? "slices" : "grams/ml";
+        // Now build the HTML (same as before, but with combined summary)
+        if (Object.keys(usageSummary).length === 0) {
+            document.getElementById("reportResult").innerHTML = "<p>No ingredient usage detected in this period.</p>";
+            return;
+        }
+
+        let html = `
+            <div id="reportToExport">
+                <h2 style="text-align:center;">Stock Usage Summary</h2>
+                <p style="text-align:center;">${from} to ${to}</p>
+                <table style="width:100%; border-collapse: collapse; margin-top: 20px;">
+                    <thead>
+                        <tr style="background:#f2f2f2;">
+                            <th>Ingredient</th>
+                            <th style="text-align:right;">Amount Used</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+        for (let ing in usageSummary) {
+            let unit = ing.toLowerCase().includes("egg") ? "pcs" :
+                       ing.toLowerCase().includes("spam") ? "slices" : "grams/ml";
+
+            html += `
+                <tr>
+                    <td style="border:1px solid #ddd; padding:8px;">${ing.toUpperCase()}</td>
+                    <td style="border:1px solid #ddd; padding:8px; text-align:right;">${usageSummary[ing]} ${unit}</td>
+                </tr>`;
+        }
 
         html += `
-            <tr>
-                <td style="border:1px solid #ddd; padding:8px;">${ing.toUpperCase()}</td>
-                <td style="border:1px solid #ddd; padding:8px; text-align:right;">${usageSummary[ing]} ${unit}</td>
-            </tr>`;
-    }
+                    </tbody>
+                </table>
+            </div>
+            <br>
+            <button class="btn-use" onclick="saveReportAsPDF('${from}_Usage')">Save Usage as PDF</button>`;
 
-    html += `
-                </tbody>
-            </table>
-        </div>
-        <br>
-        <button class="btn-use" onclick="saveReportAsPDF('${from}_Usage')">Save Usage as PDF</button>`;
-
-    document.getElementById("reportResult").innerHTML = html;
+        document.getElementById("reportResult").innerHTML = html;
+    };
 }
 
 function saveReportAsPDF(fileName) {
@@ -574,3 +654,26 @@ function toggleFullscreen() {
         if (document.exitFullscreen) document.exitFullscreen();
     }
 }
+// Menu toggle logic – toggle on hamburger click
+document.addEventListener('DOMContentLoaded', () => {
+  const menuToggle = document.getElementById('menuToggle');
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('overlay');
+
+  function toggleMenu() {
+    const isOpen = sidebar.classList.toggle('open');
+    overlay.classList.toggle('active', isOpen);
+    menuToggle.classList.toggle('active', isOpen);  // optional: change button color when open
+  }
+
+  menuToggle.addEventListener('click', toggleMenu);
+  overlay.addEventListener('click', toggleMenu);
+
+  // Auto-close sidebar after clicking any menu item
+  const navButtons = sidebar.querySelectorAll('button');
+  navButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      setTimeout(toggleMenu, 150);  // small delay to let navigation happen first
+    });
+  });
+});
